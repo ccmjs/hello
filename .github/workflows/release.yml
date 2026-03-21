@@ -1,0 +1,107 @@
+name: Build Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install terser clean-css
+
+      - name: Extract version from tag
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+
+      - name: Build files
+        run: |
+          node <<'EOF'
+          import fs from "fs";
+          import { minify } from "terser";
+          import CleanCSS from "clean-css";
+
+          const VERSION = process.env.VERSION;
+          const BASE_URL = "https://ccmjs.github.io/hello/";
+
+          const files = fs.readdirSync(".");
+
+          // Detect main component file (ccm.*.mjs)
+          const mainFile = files.find(f => /^ccm\.[a-z0-9_]+\.mjs$/.test(f));
+
+          const outputs = [];
+
+          for (const file of files) {
+
+            // Skip HTML files entirely
+            if (file.endsWith(".html")) continue;
+
+            const ext = file.split(".").pop();
+
+            // Only process relevant file types
+            if (!["js", "mjs", "css"].includes(ext)) continue;
+
+            let content = fs.readFileSync(file, "utf-8");
+
+            // Replace local paths ("././") with absolute URLs
+            content = content.replaceAll("././", BASE_URL);
+
+            // Determine output filename
+            let outputName = file;
+
+            // Rename main component file with version
+            if (file === mainFile) {
+              outputName = file.replace(".mjs", `-${VERSION}.mjs`);
+            }
+
+            // Minify JavaScript and ES modules + generate sourcemaps
+            if (ext === "js" || ext === "mjs") {
+              const result = await minify(content, {
+                sourceMap: {
+                  filename: outputName,
+                  url: outputName + ".map"
+                }
+              });
+
+              const minifiedName = outputName.replace(ext, `min.${ext}`);
+
+              fs.writeFileSync(minifiedName, result.code);
+              fs.writeFileSync(outputName + ".map", result.map);
+
+              outputs.push(minifiedName);
+              outputs.push(outputName + ".map");
+            }
+
+            // Minify CSS
+            if (ext === "css") {
+              const minified = new CleanCSS().minify(content).styles;
+              const minifiedName = file.replace(".css", ".min.css");
+
+              fs.writeFileSync(minifiedName, minified);
+
+              outputs.push(minifiedName);
+            }
+          }
+
+          fs.writeFileSync("release_files.txt", outputs.join("\n"));
+          EOF
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            *.min.js
+            *.min.mjs
+            *.min.css
+            *.map
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
