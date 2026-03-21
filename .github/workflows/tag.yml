@@ -2,6 +2,9 @@
 
 name: Build & Tag (CDN Ready)
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   workflow_dispatch:
     inputs:
@@ -77,19 +80,36 @@ jobs:
               }
             }
 
-            // JS / MJS minify + source map
+            // 🔥 JS / MJS minify + FULL source map
             if (ext === "js" || ext === "mjs") {
               const result = await minify(content, {
+                compress: true,
+                mangle: true,
                 sourceMap: {
                   filename: outputName,
                   url: outputName + ".map"
                 }
               });
 
+              const map = JSON.parse(result.map);
+
+              // reference original file name
+              map.sources = [file];
+
+              // embed original source for DevTools
+              map.sourcesContent = [content];
+
               const minName = outputName.replace(ext, `min.${ext}`);
 
-              fs.writeFileSync(minName, result.code);
-              fs.writeFileSync(outputName + ".map", result.map);
+              fs.writeFileSync(
+                minName,
+                result.code + `\n//# sourceMappingURL=${outputName}.map`
+              );
+
+              fs.writeFileSync(
+                outputName + ".map",
+                JSON.stringify(map)
+              );
             }
 
             // CSS minify

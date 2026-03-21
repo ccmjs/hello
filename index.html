@@ -7,7 +7,11 @@
   </head>
   <body>
     <script>
-      ccm.start("./ccm.hello.mjs", { name: "World" }, document.body);
+      ccm.start(
+        "https://cdn.jsdelivr.net/gh/ccmjs/hello@v1.0.0/ccm.hello-1.0.0.min.mjs#sha384-AUnHcKTLBWEgqeIEisMB931h1vZ2ni61UNszI2eonTVjGZ0qSBOp2O2kPF9TDMD7",
+        { name: "World" },
+        document.body,
+      );
     </script>
   </body>
 </html>
