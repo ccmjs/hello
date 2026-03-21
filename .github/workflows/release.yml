@@ -93,15 +93,17 @@ jobs:
           }
           EOF
 
-      - name: Commit build into tag
+      - name: Commit build
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
+          git checkout -b release-build
+
           git add .
           git commit -m "build for $VERSION" || echo "no changes"
 
-      - name: Force update tag
+      - name: Move tag to build commit
         run: |
           git tag -f $GITHUB_REF_NAME
-          git push origin $GITHUB_REF_NAME --force
+          git push origin HEAD:refs/tags/$GITHUB_REF_NAME --force
