@@ -1,4 +1,4 @@
-name: Build & Create Release
+name: Build & Release (CDN Ready)
 
 on:
   workflow_dispatch:
@@ -8,19 +8,24 @@ on:
         required: true
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout main
+        uses: actions/checkout@v3
+        with:
+          ref: main
 
-      - uses: actions/setup-node@v3
+      - name: Setup Node
+        uses: actions/setup-node@v3
         with:
           node-version: 20
 
-      - run: npm install terser clean-css
+      - name: Install deps
+        run: npm install terser clean-css
 
-      - name: Build
+      - name: Build files
         run: |
           node <<'EOF'
           import fs from "fs";
@@ -82,6 +87,7 @@ jobs:
             if (ext === "css") {
               const minified = new CleanCSS().minify(content).styles;
               const minName = file.replace(".css", ".min.css");
+
               fs.writeFileSync(minName, minified);
             }
           }
@@ -89,17 +95,15 @@ jobs:
         env:
           VERSION: ${{ github.event.inputs.version }}
 
-      - name: Commit build
+      - name: Commit build (detached)
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git checkout -b release-build
-
           git add .
-          git commit -m "build $VERSION"
+          git commit -m "build v$VERSION"
 
-      - name: Create tag
+      - name: Create tag on build commit
         run: |
           git tag v$VERSION
           git push origin v$VERSION
