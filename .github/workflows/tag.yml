@@ -87,7 +87,7 @@ jobs:
                 mangle: true,
                 sourceMap: {
                   filename: outputName,
-                  url: outputName + ".map"
+                  url: BASE_URL + outputName + ".map"
                 }
               });
 
