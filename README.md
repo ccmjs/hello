@@ -44,7 +44,7 @@ all configuration is documented where it is defined.
 
 <script>
 ccm.start(
-  "https://cdn.jsdelivr.net/gh/ccmjs/hello@v1.0.0/ccm.hello.mjs",
+  "https://cdn.jsdelivr.net/gh/ccmjs/hello@v1.0.0/ccm.hello-1.0.0.mjs",
   { name: "Mika" },
   document.body
 );
