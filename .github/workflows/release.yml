@@ -1,32 +1,26 @@
-name: Build & Publish Release
+name: Build & Create Release
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (e.g. 1.0.0)"
+        required: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v3
 
-      - name: Setup Node
-        uses: actions/setup-node@v3
+      - uses: actions/setup-node@v3
         with:
           node-version: 20
 
-      - name: Install deps
-        run: npm install terser clean-css
+      - run: npm install terser clean-css
 
-      - name: Extract version
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
-
-      - name: Build files
+      - name: Build
         run: |
           node <<'EOF'
           import fs from "fs";
@@ -92,6 +86,8 @@ jobs:
             }
           }
           EOF
+        env:
+          VERSION: ${{ github.event.inputs.version }}
 
       - name: Commit build
         run: |
@@ -101,9 +97,11 @@ jobs:
           git checkout -b release-build
 
           git add .
-          git commit -m "build for $VERSION" || echo "no changes"
+          git commit -m "build $VERSION"
 
-      - name: Move tag to build commit
+      - name: Create tag
         run: |
-          git tag -f $GITHUB_REF_NAME
-          git push origin HEAD:refs/tags/$GITHUB_REF_NAME --force
+          git tag v$VERSION
+          git push origin v$VERSION
+        env:
+          VERSION: ${{ github.event.inputs.version }}
