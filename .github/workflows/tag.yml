@@ -1,0 +1,114 @@
+name: Build & Tag (CDN Ready)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (e.g. 1.0.0)"
+        required: true
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v3
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install terser clean-css
+
+      - name: Build files
+        run: |
+          node <<'EOF'
+          import fs from "fs";
+          import { minify } from "terser";
+          import CleanCSS from "clean-css";
+
+          const VERSION = process.env.VERSION;
+
+          const repo = process.env.GITHUB_REPOSITORY;
+          const [owner, name] = repo.split("/");
+          const BASE_URL = `https://${owner}.github.io/${name}/`;
+
+          const files = fs.readdirSync(".").filter(f => {
+            if (fs.statSync(f).isDirectory()) return false;
+            if (f.startsWith(".")) return false;
+            if (f.includes(".min.")) return false;
+            if (["README.md", "LICENSE"].includes(f)) return false;
+            if (f.endsWith(".html")) return false;
+            return true;
+          });
+
+          const mainFile =
+            files.find(f => f === "ccm.js") ||
+            files.find(f => /^ccm\.[a-z0-9_]+\.mjs$/.test(f));
+
+          for (const file of files) {
+
+            const ext = file.split(".").pop();
+            if (!["js", "mjs", "css"].includes(ext)) continue;
+
+            let content = fs.readFileSync(file, "utf-8");
+
+            // replace local paths
+            content = content.replaceAll("././", BASE_URL);
+
+            let outputName = file;
+
+            // version main file
+            if (file === mainFile) {
+              if (file.endsWith(".mjs")) {
+                outputName = file.replace(".mjs", `-${VERSION}.mjs`);
+              } else {
+                outputName = file.replace(".js", `-${VERSION}.js`);
+              }
+            }
+
+            // JS / MJS
+            if (ext === "js" || ext === "mjs") {
+              const result = await minify(content, {
+                sourceMap: {
+                  filename: outputName,
+                  url: outputName + ".map"
+                }
+              });
+
+              const minName = outputName.replace(ext, `min.${ext}`);
+
+              fs.writeFileSync(minName, result.code);
+              fs.writeFileSync(outputName + ".map", result.map);
+            }
+
+            // CSS
+            if (ext === "css") {
+              const minified = new CleanCSS().minify(content).styles;
+              const minName = file.replace(".css", ".min.css");
+
+              fs.writeFileSync(minName, minified);
+            }
+          }
+          EOF
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+
+      - name: Commit build (on detached HEAD)
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add .
+          git commit -m "build v${{ github.event.inputs.version }}"
+
+      - name: Create tag from build commit
+        run: |
+          git tag v${{ github.event.inputs.version }}
+          git push origin v${{ github.event.inputs.version }}
