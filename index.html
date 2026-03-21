@@ -1,5 +1,9 @@
-<!DOCTYPE html>
-<meta charset="UTF-8">
-<body>
+<!doctype html>
+<meta charset="UTF-8" />
+<title>ccmjs Hello Demo</title>
+
 <script src="https://ccmjs.github.io/framework/ccm.js"></script>
-<ccm-app component="./ccm.hello.mjs" config='{"name":"Mika"}'></ccm-app>
+
+<script>
+  ccm.start("./ccm.hello.mjs", { name: "World" }, document.body);
+</script>
