@@ -1,18 +1,92 @@
-# ccm.hello.mjs
+# ccmjs Hello Component
 
-A minimal “Hello World” component for the [ccmjs framework](https://github.com/ccmjs/framework).
+A minimal example component for the **ccmjs framework**.
 
-This component is intended as a **starting point for beginners** who want to learn how CCM components are structured, configured, and embedded at runtime.
+This component renders a simple greeting using a configurable name.
 
----
+## 🚀 Quick Start
 
-## What This Component Demonstrates
+Include ccmjs and start the component:
 
-This example shows the essential concepts of a CCM component:
+```html
+<!DOCTYPE html>
+<meta charset="UTF-8">
+<body>
 
-- Component definition structure
-- Default configuration
-- Instance creation and configuration override
-- Rendering content into the component’s web page area
+<script src="https://ccmjs.github.io/framework/ccm.js"></script>
 
-No build step, tooling, or framework setup is required.
+<script>
+ccm.start("./ccm.hello.mjs", {
+  name: "Mika"
+}, document.body);
+</script>
+```
+
+## 💡 Example Output
+
+```
+Hello Mika
+```
+
+## ⚙️ Configuration
+
+Configuration is defined directly in the component source code.
+
+Open `ccm.hello.mjs` to see all available configuration options and their descriptions.
+
+This follows the ccmjs principle of **code transparency**:
+all configuration is documented where it is defined.
+
+## 📦 Usage with CDN (versioned)
+
+```html
+<script src="https://ccmjs.github.io/framework/ccm.js"></script>
+
+<script>
+ccm.start(
+  "https://cdn.jsdelivr.net/gh/ccmjs/hello@v1.0.0/ccm.hello.mjs",
+  { name: "Mika" },
+  document.body
+);
+</script>
+```
+
+## 🧩 Component Structure
+
+A ccmjs component exports a `component` object:
+
+```js
+export const component = {
+  name: "hello",
+  ccm: "https://ccmjs.github.io/framework/ccm.js",
+  config: {
+    name: "World"
+  },
+  Instance: function () {
+    this.start = async () => {
+      this.element.innerHTML = "Hello " + this.name;
+    };
+  }
+};
+```
+
+## 🔍 Code Transparency
+
+Each ccmjs component is a standalone file that can be inspected at runtime.
+
+There is no build step, bundling, or hidden abstraction layer.
+
+You can always:
+
+- read the original source code
+- understand how the component works
+- inspect it directly in the browser (via source maps)
+
+## 📚 Learn More
+
+- ccmjs Framework: https://github.com/ccmjs/framework
+- Documentation: https://github.com/ccmjs/framework/wiki
+
+## 📄 License
+
+MIT License
