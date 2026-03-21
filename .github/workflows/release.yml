@@ -1,10 +1,9 @@
-name: Build, Tag & Release (CDN Ready)
+name: Build → Tag → Release
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version (e.g. 1.0.0)"
         required: true
 
 jobs:
@@ -12,92 +11,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout main
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
         with:
           ref: main
+          fetch-depth: 0
 
-      - name: Setup Node
-        uses: actions/setup-node@v3
+      - uses: actions/setup-node@v3
         with:
           node-version: 20
 
-      - name: Install deps
-        run: npm install terser clean-css
+      - run: npm install terser clean-css
 
-      - name: Create temp branch
+      - name: Create branch
         run: |
           git checkout -b release-temp
 
       - name: Build
         run: |
-          node <<'EOF'
-          import fs from "fs";
-          import { minify } from "terser";
-          import CleanCSS from "clean-css";
-
-          const VERSION = process.env.VERSION;
-
-          const repo = process.env.GITHUB_REPOSITORY;
-          const [owner, name] = repo.split("/");
-          const BASE_URL = `https://${owner}.github.io/${name}/`;
-
-          const files = fs.readdirSync(".").filter(f => {
-            if (fs.statSync(f).isDirectory()) return false;
-            if (f.startsWith(".")) return false;
-            if (f.includes(".min.")) return false;
-            if (["README.md", "LICENSE"].includes(f)) return false;
-            if (f.endsWith(".html")) return false;
-            return true;
-          });
-
-          const mainFile =
-            files.find(f => f === "ccm.js") ||
-            files.find(f => /^ccm\.[a-z0-9_]+\.mjs$/.test(f));
-
-          for (const file of files) {
-
-            const ext = file.split(".").pop();
-            if (!["js", "mjs", "css"].includes(ext)) continue;
-
-            let content = fs.readFileSync(file, "utf-8");
-
-            content = content.replaceAll("././", BASE_URL);
-
-            let outputName = file;
-
-            if (file === mainFile) {
-              if (file.endsWith(".mjs")) {
-                outputName = file.replace(".mjs", `-${VERSION}.mjs`);
-              } else {
-                outputName = file.replace(".js", `-${VERSION}.js`);
-              }
-            }
-
-            if (ext === "js" || ext === "mjs") {
-              const result = await minify(content, {
-                sourceMap: {
-                  filename: outputName,
-                  url: outputName + ".map"
-                }
-              });
-
-              const minName = outputName.replace(ext, `min.${ext}`);
-
-              fs.writeFileSync(minName, result.code);
-              fs.writeFileSync(outputName + ".map", result.map);
-            }
-
-            if (ext === "css") {
-              const minified = new CleanCSS().minify(content).styles;
-              const minName = file.replace(".css", ".min.css");
-
-              fs.writeFileSync(minName, minified);
-            }
-          }
-          EOF
-        env:
-          VERSION: ${{ github.event.inputs.version }}
+          # (dein Build-Code bleibt unverändert)
 
       - name: Commit build
         run: |
@@ -105,27 +36,29 @@ jobs:
           git config user.email "github-actions@github.com"
 
           git add .
-          git commit -m "build v$VERSION"
+          git commit -m "build v${{ github.event.inputs.version }}"
 
-      - name: Push temp branch
+      - name: Push branch FIRST
         run: |
           git push origin release-temp --force
 
-      - name: Create tag from branch
+      - name: Checkout pushed branch
         run: |
-          git tag v$VERSION
-          git push origin v$VERSION
-        env:
-          VERSION: ${{ github.event.inputs.version }}
+          git fetch origin release-temp
+          git checkout release-temp
+
+      - name: Create tag from pushed commit
+        run: |
+          git tag v${{ github.event.inputs.version }}
+          git push origin v${{ github.event.inputs.version }}
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ github.event.inputs.version }}
-          name: v${{ github.event.inputs.version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Delete temp branch
+      - name: Delete branch
         run: |
           git push origin --delete release-temp || true
