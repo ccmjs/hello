@@ -24,7 +24,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install dependencies
         run: npm install terser clean-css
@@ -45,12 +45,10 @@ jobs:
           const files = fs.readdirSync(".").filter(f => {
             if (fs.statSync(f).isDirectory()) return false;
             if (f.startsWith(".")) return false;
-            if (f.includes(".min.")) return false;
-            if (["README.md", "LICENSE"].includes(f)) return false;
-            if (f.endsWith(".html")) return false;
             return true;
           });
 
+          // detect main file (framework or component)
           const mainFile =
             files.find(f => f === "ccm.js") ||
             files.find(f => /^ccm\.[a-z0-9_]+\.mjs$/.test(f));
@@ -58,16 +56,17 @@ jobs:
           for (const file of files) {
 
             const ext = file.split(".").pop();
+
             if (!["js", "mjs", "css"].includes(ext)) continue;
 
             let content = fs.readFileSync(file, "utf-8");
 
-            // Replace local paths
+            // replace local paths
             content = content.replaceAll("././", BASE_URL);
 
             let outputName = file;
 
-            // Version main file
+            // rename main file with version
             if (file === mainFile) {
               if (file.endsWith(".mjs")) {
                 outputName = file.replace(".mjs", `-${VERSION}.mjs`);
@@ -76,7 +75,7 @@ jobs:
               }
             }
 
-            // JS / MJS minify
+            // JS / MJS minify + source map
             if (ext === "js" || ext === "mjs") {
               const result = await minify(content, {
                 sourceMap: {
@@ -99,6 +98,26 @@ jobs:
               fs.writeFileSync(minName, minified);
             }
           }
+
+          // 🔥 CLEANUP: keep ONLY .min.* and .map
+          const all = fs.readdirSync(".");
+
+          for (const file of all) {
+
+            if (file.startsWith(".")) {
+              fs.rmSync(file, { recursive: true, force: true });
+              continue;
+            }
+
+            const ext = file.split(".").pop();
+            const isMin = file.includes(".min.");
+            const isMap = ext === "map";
+
+            if (!isMin && !isMap) {
+              fs.rmSync(file, { recursive: true, force: true });
+            }
+          }
+
           EOF
         env:
           VERSION: ${{ github.event.inputs.version }}
