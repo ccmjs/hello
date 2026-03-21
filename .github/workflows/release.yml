@@ -1,4 +1,4 @@
-name: Build & Release (CDN Ready)
+name: Build, Tag & Release (CDN Ready)
 
 on:
   workflow_dispatch:
@@ -25,7 +25,11 @@ jobs:
       - name: Install deps
         run: npm install terser clean-css
 
-      - name: Build files
+      - name: Create temp branch
+        run: |
+          git checkout -b release-temp
+
+      - name: Build
         run: |
           node <<'EOF'
           import fs from "fs";
@@ -95,7 +99,7 @@ jobs:
         env:
           VERSION: ${{ github.event.inputs.version }}
 
-      - name: Commit build (detached)
+      - name: Commit build
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
@@ -103,9 +107,25 @@ jobs:
           git add .
           git commit -m "build v$VERSION"
 
-      - name: Create tag on build commit
+      - name: Push temp branch
+        run: |
+          git push origin release-temp --force
+
+      - name: Create tag from branch
         run: |
           git tag v$VERSION
           git push origin v$VERSION
         env:
           VERSION: ${{ github.event.inputs.version }}
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          name: v${{ github.event.inputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete temp branch
+        run: |
+          git push origin --delete release-temp || true
