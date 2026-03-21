@@ -7,19 +7,22 @@ on:
         description: "Version (e.g. 1.0.0)"
         required: true
 
+permissions:
+  contents: write
+
 jobs:
   tag:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout main
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
 
       - name: Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
@@ -59,12 +62,12 @@ jobs:
 
             let content = fs.readFileSync(file, "utf-8");
 
-            // replace local paths
+            // Replace local paths
             content = content.replaceAll("././", BASE_URL);
 
             let outputName = file;
 
-            // version main file
+            // Version main file
             if (file === mainFile) {
               if (file.endsWith(".mjs")) {
                 outputName = file.replace(".mjs", `-${VERSION}.mjs`);
@@ -73,7 +76,7 @@ jobs:
               }
             }
 
-            // JS / MJS
+            // JS / MJS minify
             if (ext === "js" || ext === "mjs") {
               const result = await minify(content, {
                 sourceMap: {
@@ -88,7 +91,7 @@ jobs:
               fs.writeFileSync(outputName + ".map", result.map);
             }
 
-            // CSS
+            // CSS minify
             if (ext === "css") {
               const minified = new CleanCSS().minify(content).styles;
               const minName = file.replace(".css", ".min.css");
@@ -100,7 +103,7 @@ jobs:
         env:
           VERSION: ${{ github.event.inputs.version }}
 
-      - name: Commit build (on detached HEAD)
+      - name: Commit build
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
@@ -108,7 +111,7 @@ jobs:
           git add .
           git commit -m "build v${{ github.event.inputs.version }}"
 
-      - name: Create tag from build commit
+      - name: Create and push tag
         run: |
-          git tag v${{ github.event.inputs.version }}
-          git push origin v${{ github.event.inputs.version }}
+          git tag -f v${{ github.event.inputs.version }}
+          git push origin v${{ github.event.inputs.version }} --force
