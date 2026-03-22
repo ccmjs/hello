@@ -83,7 +83,7 @@ jobs:
                 mangle: true,
                 sourceMap: {
                   filename: outputName,
-                  url: outputName + ".map"   // IMPORTANT: relative!
+                  url: `https://cdn.jsdelivr.net/gh/${owner}/${name}@v${VERSION}/${outputName}.map`
                 }
               });
               const map = JSON.parse(result.map);
@@ -97,9 +97,10 @@ jobs:
               map.sourcesContent = [content];
 
               const minName = outputName.replace(ext, `min.${ext}`);
+              const mapURL = `https://cdn.jsdelivr.net/gh/${owner}/${name}@v${VERSION}/${outputName}.map`;
               fs.writeFileSync(
                 minName,
-                result.code + `\n//# sourceMappingURL=${outputName}.map`
+                result.code + `\n//# sourceMappingURL=${mapURL}`
               );
               fs.writeFileSync(
                 outputName + ".map",
