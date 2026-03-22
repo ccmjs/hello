@@ -37,15 +37,16 @@ jobs:
       - name: Build files
         run: |
           node <<'EOF'
-          
+
           import fs from "fs";
           import { minify } from "terser";
           import CleanCSS from "clean-css";
-          
+
           const VERSION = process.env.VERSION;
           const repo = process.env.GITHUB_REPOSITORY;
           const [owner, name] = repo.split("/");
           const BASE_URL = `https://${owner}.github.io/${name}/`;
+          const CDN_BASE = `https://cdn.jsdelivr.net/gh/${owner}/${name}@v${VERSION}/`;
           const files = fs.readdirSync(".").filter(f => {
             if (fs.statSync(f).isDirectory()) return false;
             if (f.startsWith(".")) return false;
@@ -78,29 +79,31 @@ jobs:
 
             // JS / MJS minify + FULL source map
             if (ext === "js" || ext === "mjs") {
+              const mapURL = CDN_BASE + outputName + ".map";
               const result = await minify(content, {
                 compress: true,
                 mangle: true,
                 sourceMap: {
                   filename: outputName,
-                  url: `https://cdn.jsdelivr.net/gh/${owner}/${name}@v${VERSION}/${outputName}.map`
+                  url: false
                 }
               });
               const map = JSON.parse(result.map);
 
-              // nicer DevTools naming
+              // clean DevTools naming
               map.file = outputName;
-              map.sourceRoot = "";
-              map.sources = [`ccm/${file}`];
-
-              // embed original source
+              map.sourceRoot = "ccmjs:///";
+              map.sources = [file];
               map.sourcesContent = [content];
 
               const minName = outputName.replace(ext, `min.${ext}`);
-              const mapURL = `https://cdn.jsdelivr.net/gh/${owner}/${name}@v${VERSION}/${outputName}.map`;
+
+              // remove any existing sourceMappingURL comment
+              let code = result.code.replace(/\/\/# sourceMappingURL=.*$/gm, "");
+
               fs.writeFileSync(
                 minName,
-                result.code + `\n//# sourceMappingURL=${mapURL}`
+                code + `\n//# sourceMappingURL=${mapURL}`
               );
               fs.writeFileSync(
                 outputName + ".map",
@@ -150,7 +153,7 @@ jobs:
           git add .
           git commit -m "build v${{ github.event.inputs.version }}"
 
-      - name: Check if tag already exists
+      - name: Check if tag exists
         run: |
           if git rev-parse "v${{ github.event.inputs.version }}" >/dev/null 2>&1; then
             echo "❌ Tag already exists. Use a new version."
