@@ -2,9 +2,6 @@
 
 name: Build & Tag (CDN Ready)
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 on:
   workflow_dispatch:
     inputs:
@@ -37,109 +34,162 @@ jobs:
       - name: Build files
         run: |
           node <<'EOF'
-
           import fs from "fs";
+          import path from "path";
           import { minify } from "terser";
           import CleanCSS from "clean-css";
 
           const VERSION = process.env.VERSION;
+
           const repo = process.env.GITHUB_REPOSITORY;
           const [owner, name] = repo.split("/");
+
           const BASE_URL = `https://${owner}.github.io/${name}/`;
           const CDN_BASE = `https://cdn.jsdelivr.net/gh/${owner}/${name}@v${VERSION}/`;
-          const files = fs.readdirSync(".").filter(f => {
-            if (fs.statSync(f).isDirectory()) return false;
-            if (f.startsWith(".")) return false;
-            return true;
-          });
 
-          // detect main file (framework or component)
-          const mainFile =
-            files.find(f => f === "ccm.js") ||
-            files.find(f => /^ccm\.[a-z0-9_]+\.mjs$/.test(f));
+          // ---------- find main file ----------
+          const rootFiles = fs.readdirSync(".");
+          const mainFile = rootFiles.find(f => f.endsWith(".mjs"));
 
-          for (const file of files) {
-            const ext = file.split(".").pop();
-            if (!["js", "mjs", "css"].includes(ext)) continue;
+          if (!mainFile) throw new Error("No main .mjs file found");
+
+          // ---------- collect resources ----------
+          function collectResources(dir = "resources") {
+            if (!fs.existsSync(dir)) return [];
+
+            const result = [];
+
+            function walk(current) {
+              const entries = fs.readdirSync(current, { withFileTypes: true });
+
+              for (const entry of entries) {
+                const full = path.join(current, entry.name);
+
+                if (entry.isDirectory()) {
+                  walk(full);
+                } else {
+                  result.push(full);
+                }
+              }
+            }
+
+            walk(dir);
+            return result;
+          }
+
+          const resourceFiles = collectResources();
+
+          // ---------- JS / MJS ----------
+          async function processJS(file, isMain = false) {
+
             let content = fs.readFileSync(file, "utf-8");
 
-            // replace local paths
+            // replace ././ paths
             content = content.replaceAll("././", BASE_URL);
 
             let outputName = file;
 
-            // rename main file with version
-            if (file === mainFile) {
-              if (file.endsWith(".mjs")) {
-                outputName = file.replace(".mjs", `-${VERSION}.mjs`);
+            if (isMain) {
+              outputName = file.replace(".mjs", `-${VERSION}.mjs`);
+            }
+
+            const mapURL = CDN_BASE + outputName + ".map";
+
+            const result = await minify(content, {
+              compress: true,
+              mangle: true,
+              sourceMap: {
+                filename: outputName,
+                url: false
+              }
+            });
+
+            const map = JSON.parse(result.map);
+
+            map.file = outputName;
+            map.sourceRoot = "ccmjs:///";
+            map.sources = [file];
+            map.sourcesContent = [content];
+
+            const minName = outputName.replace(".mjs", ".min.mjs");
+
+            let code = result.code.replace(/\/\/# sourceMappingURL=.*$/gm, "");
+
+            fs.mkdirSync(path.dirname(minName), { recursive: true });
+
+            fs.writeFileSync(
+              minName,
+              code + `\n//# sourceMappingURL=${mapURL}`
+            );
+
+            fs.writeFileSync(
+              outputName + ".map",
+              JSON.stringify(map)
+            );
+          }
+
+          // ---------- CSS ----------
+          function processCSS(file) {
+            const content = fs.readFileSync(file, "utf-8");
+            const minified = new CleanCSS().minify(content).styles;
+
+            const minName = file.replace(".css", ".min.css");
+
+            fs.mkdirSync(path.dirname(minName), { recursive: true });
+
+            fs.writeFileSync(minName, minified);
+          }
+
+          // ---------- RUN ----------
+          await processJS(mainFile, true);
+
+          for (const file of resourceFiles) {
+
+            if (file.endsWith(".js") || file.endsWith(".mjs")) {
+              await processJS(file);
+            }
+            else if (file.endsWith(".css")) {
+              processCSS(file);
+            }
+            else {
+              // copy other files (images etc.)
+              fs.mkdirSync(path.dirname(file), { recursive: true });
+              fs.copyFileSync(file, file);
+            }
+          }
+
+          // ---------- CLEAN ROOT ----------
+          for (const file of fs.readdirSync(".")) {
+            if (file === ".git") continue;
+            if (file === mainFile || file === "resources") continue;
+
+            fs.rmSync(file, { recursive: true, force: true });
+          }
+
+          // ---------- CLEAN ORIGINAL FILES ----------
+          function cleanResources(dir = "resources") {
+            if (!fs.existsSync(dir)) return;
+
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+            for (const entry of entries) {
+              const full = path.join(dir, entry.name);
+
+              if (entry.isDirectory()) {
+                cleanResources(full);
               } else {
-                outputName = file.replace(".js", `-${VERSION}.js`);
+                if (
+                  full.endsWith(".js") ||
+                  full.endsWith(".mjs") ||
+                  full.endsWith(".css")
+                ) {
+                  fs.rmSync(full, { force: true });
+                }
               }
             }
-
-            // JS / MJS minify + FULL source map
-            if (ext === "js" || ext === "mjs") {
-              const mapURL = CDN_BASE + outputName + ".map";
-              const result = await minify(content, {
-                compress: true,
-                mangle: true,
-                sourceMap: {
-                  filename: outputName,
-                  url: false
-                }
-              });
-              const map = JSON.parse(result.map);
-
-              // clean DevTools naming
-              map.file = outputName;
-              map.sourceRoot = "ccmjs:///";
-              map.sources = [file];
-              map.sourcesContent = [content];
-
-              const minName = outputName.replace(ext, `min.${ext}`);
-
-              // remove any existing sourceMappingURL comment
-              let code = result.code.replace(/\/\/# sourceMappingURL=.*$/gm, "");
-
-              fs.writeFileSync(
-                minName,
-                code + `\n//# sourceMappingURL=${mapURL}`
-              );
-              fs.writeFileSync(
-                outputName + ".map",
-                JSON.stringify(map)
-              );
-            }
-
-            // CSS minify
-            if (ext === "css") {
-              const minified = new CleanCSS().minify(content).styles;
-              const minName = file.replace(".css", ".min.css");
-              fs.writeFileSync(minName, minified);
-            }
           }
 
-          // CLEANUP: keep ONLY .min.* and .map, preserve .git
-          const all = fs.readdirSync(".");
-
-          for (const file of all) {
-
-            // never delete git directory
-            if (file === ".git") continue;
-
-            // remove other hidden files (.github, .gitignore, etc.)
-            if (file.startsWith(".")) {
-              fs.rmSync(file, { recursive: true, force: true });
-              continue;
-            }
-
-            const ext = file.split(".").pop();
-            const isMin = file.includes(".min.");
-            const isMap = ext === "map";
-            if (!isMin && !isMap) {
-              fs.rmSync(file, { recursive: true, force: true });
-            }
-          }
+          cleanResources();
 
           EOF
         env:
@@ -156,7 +206,7 @@ jobs:
       - name: Check if tag exists
         run: |
           if git rev-parse "v${{ github.event.inputs.version }}" >/dev/null 2>&1; then
-            echo "❌ Tag already exists. Use a new version."
+            echo "❌ Tag already exists"
             exit 1
           fi
 
