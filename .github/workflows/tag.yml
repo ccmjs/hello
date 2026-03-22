@@ -1,6 +1,9 @@
-# ccmjs workflow v1.0.0
+# ccmjs workflow v3.0.0
 
 name: Build & Tag (CDN Ready)
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 on:
   workflow_dispatch:
@@ -54,7 +57,7 @@ jobs:
           if (!mainFile) throw new Error("No main .mjs file found");
 
           // ---------- collect resources ----------
-          function collectResources(dir = "resources") {
+          function collect(dir) {
             if (!fs.existsSync(dir)) return [];
 
             const result = [];
@@ -77,14 +80,13 @@ jobs:
             return result;
           }
 
-          const resourceFiles = collectResources();
+          const resourceFiles = collect("resources");
 
           // ---------- JS / MJS ----------
           async function processJS(file, isMain = false) {
 
             let content = fs.readFileSync(file, "utf-8");
 
-            // replace ././ paths
             content = content.replaceAll("././", BASE_URL);
 
             let outputName = file;
@@ -111,7 +113,7 @@ jobs:
             map.sources = [file];
             map.sourcesContent = [content];
 
-            const minName = outputName.replace(".mjs", ".min.mjs");
+            const minName = outputName.replace(/\.(m?js)$/, ".min.$1");
 
             let code = result.code.replace(/\/\/# sourceMappingURL=.*$/gm, "");
 
@@ -151,22 +153,33 @@ jobs:
             else if (file.endsWith(".css")) {
               processCSS(file);
             }
-            else {
-              // copy other files (images etc.)
-              fs.mkdirSync(path.dirname(file), { recursive: true });
-              fs.copyFileSync(file, file);
-            }
+            // images etc. bleiben unverändert
           }
 
           // ---------- CLEAN ROOT ----------
           for (const file of fs.readdirSync(".")) {
-            if (file === ".git") continue;
-            if (file === mainFile || file === "resources") continue;
 
+            if (file === ".git") continue;
+
+            // keep output
+            if (file.includes(".min.")) continue;
+            if (file.endsWith(".map")) continue;
+
+            // keep folders
+            if (file === "resources") continue;
+            if (file === "libs") continue;
+
+            // delete original main file
+            if (file === mainFile) {
+              fs.rmSync(file, { force: true });
+              continue;
+            }
+
+            // delete everything else
             fs.rmSync(file, { recursive: true, force: true });
           }
 
-          // ---------- CLEAN ORIGINAL FILES ----------
+          // ---------- CLEAN ORIGINALS IN RESOURCES ----------
           function cleanResources(dir = "resources") {
             if (!fs.existsSync(dir)) return;
 
