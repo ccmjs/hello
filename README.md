@@ -13,7 +13,7 @@ Include ccmjs and start the component:
 <meta charset="UTF-8">
 <body>
 
-<script src="https://ccmjs.github.io/framework/ccm.js"></script>
+<script src="./libs/framework/ccm.js"></script>
 
 <script>
 ccm.start("./ccm.hello.mjs", {
@@ -40,10 +40,10 @@ all configuration is documented where it is defined.
 ## 📦 Usage with CDN (versioned)
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/ccmjs/framework@v28.0.0/ccm-28.0.0.min.js"></script>
+<script src="https://ccmjs.github.io/hello/libs/framework/ccm.js"></script>
 
 <script>
-ccm.start("https://cdn.jsdelivr.net/gh/ccmjs/hello@v1.0.0/ccm.hello-1.0.0.min.mjs", { name: "Mika" }, document.body);
+ccm.start("https://cdn.jsdelivr.net/gh/ccmjs/hello@v1.0.1/ccm.hello-1.0.1.min.mjs", { name: "Mika" }, document.body);
 </script>
 ```
 
