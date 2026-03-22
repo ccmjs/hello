@@ -87,30 +87,31 @@ jobs:
                 mangle: true,
                 sourceMap: {
                   filename: outputName,
-                  url: BASE_URL + outputName + ".map"
+                  url: outputName + ".map"
                 }
               });
-
+              
               const map = JSON.parse(result.map);
-
-              // reference original file name
-              map.sources = [file];
-
-              // embed original source for DevTools
+              
+              // nice naming
+              map.file = outputName;
+              map.sourceRoot = "";
+              map.sources = [`ccm/${file}`];
+              
+              // embed original code
               map.sourcesContent = [content];
-
+              
               const minName = outputName.replace(ext, `min.${ext}`);
-
+              
               fs.writeFileSync(
                 minName,
                 result.code + `\n//# sourceMappingURL=${outputName}.map`
               );
-
+              
               fs.writeFileSync(
-                outputName + ".map",
-                JSON.stringify(map)
-              );
-            }
+              outputName + ".map",
+              JSON.stringify(map)
+            );
 
             // CSS minify
             if (ext === "css") {
