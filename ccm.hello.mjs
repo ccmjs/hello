@@ -9,7 +9,7 @@
  */
 export const component = {
   name: "hello",
-  ccm: "https://ccmjs.github.io/framework/ccm.js",
+  ccm: "././libs/framework/ccm.js",
   config: {
     name: "World", // Name used in the greeting
   },
