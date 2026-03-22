@@ -37,16 +37,15 @@ jobs:
       - name: Build files
         run: |
           node <<'EOF'
+          
           import fs from "fs";
           import { minify } from "terser";
           import CleanCSS from "clean-css";
-
+          
           const VERSION = process.env.VERSION;
-
           const repo = process.env.GITHUB_REPOSITORY;
           const [owner, name] = repo.split("/");
           const BASE_URL = `https://${owner}.github.io/${name}/`;
-
           const files = fs.readdirSync(".").filter(f => {
             if (fs.statSync(f).isDirectory()) return false;
             if (f.startsWith(".")) return false;
@@ -59,11 +58,8 @@ jobs:
             files.find(f => /^ccm\.[a-z0-9_]+\.mjs$/.test(f));
 
           for (const file of files) {
-
             const ext = file.split(".").pop();
-
             if (!["js", "mjs", "css"].includes(ext)) continue;
-
             let content = fs.readFileSync(file, "utf-8");
 
             // replace local paths
@@ -80,49 +76,46 @@ jobs:
               }
             }
 
-            // 🔥 JS / MJS minify + FULL source map
+            // JS / MJS minify + FULL source map
             if (ext === "js" || ext === "mjs") {
               const result = await minify(content, {
                 compress: true,
                 mangle: true,
                 sourceMap: {
                   filename: outputName,
-                  url: outputName + ".map"
+                  url: outputName + ".map"   // IMPORTANT: relative!
                 }
               });
-              
               const map = JSON.parse(result.map);
-              
-              // nice naming
+
+              // nicer DevTools naming
               map.file = outputName;
               map.sourceRoot = "";
               map.sources = [`ccm/${file}`];
-              
-              // embed original code
+
+              // embed original source
               map.sourcesContent = [content];
-              
+
               const minName = outputName.replace(ext, `min.${ext}`);
-              
               fs.writeFileSync(
                 minName,
                 result.code + `\n//# sourceMappingURL=${outputName}.map`
               );
-              
               fs.writeFileSync(
-              outputName + ".map",
-              JSON.stringify(map)
-            );
+                outputName + ".map",
+                JSON.stringify(map)
+              );
+            }
 
             // CSS minify
             if (ext === "css") {
               const minified = new CleanCSS().minify(content).styles;
               const minName = file.replace(".css", ".min.css");
-
               fs.writeFileSync(minName, minified);
             }
           }
 
-          // 🔥 CLEANUP: keep ONLY .min.* and .map, preserve .git
+          // CLEANUP: keep ONLY .min.* and .map, preserve .git
           const all = fs.readdirSync(".");
 
           for (const file of all) {
@@ -139,7 +132,6 @@ jobs:
             const ext = file.split(".").pop();
             const isMin = file.includes(".min.");
             const isMap = ext === "map";
-
             if (!isMin && !isMap) {
               fs.rmSync(file, { recursive: true, force: true });
             }
@@ -160,7 +152,7 @@ jobs:
       - name: Check if tag already exists
         run: |
           if git rev-parse "v${{ github.event.inputs.version }}" >/dev/null 2>&1; then
-            echo "❌ Tag v${{ github.event.inputs.version }} already exists!"
+            echo "❌ Tag already exists. Use a new version."
             exit 1
           fi
 
