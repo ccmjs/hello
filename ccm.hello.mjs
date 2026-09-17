@@ -4,7 +4,8 @@
  *
  * Renders a simple greeting using the configured name.
  *
- * @author André Kless
+ * @author André Kless <andre.kless@web.de>
+ * @copyright 2025–2026 André Kless
  * @license MIT
  */
 export const component = {

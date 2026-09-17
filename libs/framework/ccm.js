@@ -7,9 +7,9 @@
  *
  * See the {@link https://github.com/ccmjs/framework/wiki ccmjs Wiki} for more information.
  *
- * @author André Kless <andre.kless@web.de> (https://github.com/akless)
+ * @author André Kless <andre.kless@web.de>
  * @copyright 2014–2026 André Kless
- * @license The MIT License (MIT)
+ * @license MIT
  * @version 28.0.0
  */
 
@@ -31,7 +31,7 @@
      * Returns the version number of ccmjs as a string following Semantic Versioning 2.0.0.
      * Use this as a synchronous, stable accessor for the ccmjs version.
      *
-     * @returns {ccm.types.version_nr} Version number of ccmjs.
+     * @returns {ccm.types.versionNr} Version number of ccmjs.
      */
     version: "28.0.0",
 
@@ -44,7 +44,7 @@
      * See [this wiki page]{@link https://github.com/ccmjs/framework/wiki/Loading-Resources}
      * to learn more about loading resources in ccmjs.
      *
-     * @param {...(string|ccm.types.resource_obj)} resources - Resources to load. Either the URL or a [resource object]{@link ccm.types.resource_obj} can be passed for a resource.
+     * @param {...(string|ccm.types.resourceObj)} resources - Resources to load. Either the URL or a [resource object]{@link ccm.types.resourceObj} can be passed for a resource.
      * @returns {Promise<*>} A promise that resolves with the loaded resources or rejects if loading of at least one resource fails.
      */
     load: async (...resources) => {
@@ -130,22 +130,24 @@
             }
 
             // Infer the type from the file extension of the resource URL when no type is given.
-            const file_extension = resource.url
+            const fileExtension = resource.url
               .split(/[#?]/)[0] // Remove query parameters and hash from URL.
               .split(".") // Split the URL by dots to get the file extension.
               .at(-1) // Get the last part as the file extension.
               .trim(); // Remove any surrounding whitespace.
 
             // Match the file extension to the corresponding loading operation.
-            switch (file_extension) {
+            switch (fileExtension) {
               case "css":
                 return loadCSS;
               case "jpg":
               case "jpeg":
-              case "gif":
               case "png":
+              case "gif":
               case "svg":
-              case "bmp":
+              case "webp":
+              case "avif":
+              case "apng":
                 return loadImage;
               case "js":
                 return loadJS;
@@ -294,17 +296,37 @@
            *
            * Sends an HTTP request to fetch the JSON data and handles the response.
            * Supports both `GET` and `POST` methods, with optional parameters. Default is `GET`.
+           * JSON request bodies default to application/json unless Content-Type is supplied.
            */
           function loadJSON() {
             // Prepare the URL or request body based on the HTTP method.
-            if (resource.params)
-              resource.method === "POST"
-                ? (resource.body = JSON.stringify(resource.params))
-                : (resource.url = buildURL(resource.url, resource.params));
+            if (resource.params) {
+              if (resource.method === "POST") {
+                resource.body = JSON.stringify(resource.params);
+                resource.headers = new Headers(resource.headers);
+                if (!resource.headers.has("Content-Type"))
+                  resource.headers.set("Content-Type", "application/json");
+              } else {
+                resource.url = buildURL(resource.url, resource.params);
+              }
+            }
 
             // Perform the fetch request and handle the response.
             fetch(resource.url, resource)
-              .then((response) => response.text())
+              .then(async (response) => {
+                const text = await response.text();
+                if (!response.ok) {
+                  let message = response.statusText;
+                  try {
+                    const body = JSON.parse(text);
+                    if (typeof body.error === "string") message = body.error;
+                  } catch {}
+                  throw Object.assign(new Error(message), {
+                    status: response.status,
+                  });
+                }
+                return text;
+              })
               .then(success)
               .catch(error);
           }
@@ -378,7 +400,7 @@
               data = new window.DOMParser().parseFromString(data, "text/xml");
 
             // Update the result array with the processed data.
-            results[i] = data;
+            if (Array.isArray(results)) results[i] = data;
 
             // Treat the loading of this resource as complete and check if all resources have been loaded.
             check();
@@ -430,9 +452,9 @@
      * See [this wiki page]{@link https://github.com/ccmjs/framework/wiki/Embedding-Components}
      * to learn more about embedding components with ccmjs.
      *
-     * @param {ccm.types.component_obj|string} component - Component object, index, or URL of the component to register
+     * @param {ccm.types.componentObj|string} component - Component object, index, or URL of the component to register
      * @param {ccm.types.config} [config={}] - Priority data for the component's default instance configuration
-     * @returns {Promise<ccm.types.component_obj>} Clone of the registered component object.
+     * @returns {Promise<ccm.types.componentObj>} Clone of the registered component object.
      * @throws {Error} If the provided component is not valid.
      */
     component: async (component, config = {}) => {
@@ -513,7 +535,7 @@
       /**
        * Retrieves the component object via index, URL or directly as JavaScript object.
        *
-       * @returns {Promise<ccm.types.component_obj>} Component object
+       * @returns {Promise<ccm.types.componentObj>} Component object
        */
       async function getComponentObject() {
         // Return the component directly if it is not a string.
@@ -523,36 +545,36 @@
          * Extracts metadata from the component URL.
          * @type {{name: string, index: string, version: string, filename: string, url: string, minified: boolean, sri: string}}
          */
-        const url_data = /\.m?js(#.*)?$/.test(component)
+        const urlData = /\.m?js(#.*)?$/.test(component)
           ? ccm.helper.parseComponentURL(component)
           : null;
 
         /**
          * Index of the component
-         * @type {ccm.types.component_index}
+         * @type {ccm.types.componentIndex}
          */
-        const index = url_data?.index || component;
+        const index = urlData?.index || component;
 
         // Return a clone of the registered component object if already registered.
         if (_components[index]) return ccm.helper.clone(_components[index]);
 
         // Abort if the component URL is not provided.
-        if (!url_data) return component;
+        if (!urlData) return component;
 
         // Load the component from the URL.
         let result = await ccm.load({
-          url: url_data.url,
+          url: urlData.url,
           type: "module",
           // If the SRI hash is provided, load the component with SRI.
-          attr: url_data.sri && {
-            integrity: url_data.sri,
+          attr: urlData.sri && {
+            integrity: urlData.sri,
             crossorigin: "anonymous",
           },
         });
         if (result?.component) result = result.component;
         else {
-          // Component file did not return the component object => try to get the component from window.framework.files. (backwards compatibility)
-          const filename = `ccm.${url_data.name}.js`;
+          // Component file did not return the component object => try to get the component from window.ccm.files. (backwards compatibility)
+          const filename = `ccm.${urlData.name}.js`;
           if (!window.ccm.files) window.ccm.files = {};
           window.ccm.files[filename] = null; // marks the component as 'loading'
           window.ccm.files = new Proxy(window.ccm.files, {
@@ -564,11 +586,11 @@
               return Reflect.set(...arguments);
             },
           });
-          await ccm.load(url_data.url);
+          await ccm.load(urlData.url);
           delete window.ccm.files[filename];
         }
 
-        result.url = url_data.url; // A component remembers its URL.
+        result.url = urlData.url; // A component remembers its URL.
         return result;
       }
     },
@@ -583,7 +605,7 @@
      * See [this wiki page]{@link https://github.com/ccmjs/framework/wiki/Embedding-Components}
      * to learn more about embedding components in ccmjs.
      *
-     * @param {ccm.types.component_obj|string} component - Component object, index, or URL of the component to register
+     * @param {ccm.types.componentObj|string} component - Component object, index, or URL of the component to register
      * @param {ccm.types.config} [config={}] - Priority data for instance configuration
      * @param {Element} [area=document.createElement("div")] - Web page area where the component instance will be embedded (default: on-the-fly `<div>`)
      * @returns {Promise<ccm.types.instance>} A promise that resolves to the created instance.
@@ -615,7 +637,7 @@
         );
 
       // Render a loading icon in the web page area.
-      const loading = config.loading?.() || ccm.helper.loading();
+      const loading = ccm.helper.loading();
       area.replaceChildren(loading);
 
       // Prepare the instance configuration.
@@ -645,7 +667,7 @@
       instance.host = document.createElement("div");
 
       // Create a shadow root for the instance if required.
-      if (config.root !== "none")
+      if (config.root !== false)
         instance.root = instance.host.attachShadow({
           mode: config.root || "open",
         });
@@ -655,6 +677,7 @@
       (instance.root || instance.host).appendChild(
         (instance.element = document.createElement("div")),
       );
+      instance.element.classList.add("root");
 
       // Temporarily move the host element to <head> for resolving dependencies.
       document.head.appendChild(instance.host);
@@ -675,7 +698,6 @@
         "host",
         "init",
         "instance",
-        "meta",
         "parent",
         "ready",
         "root",
@@ -695,6 +717,9 @@
 
       // Initialize created and dependent instances if necessary.
       if (!instance.parent?.init) await initialize();
+
+      // Remove loading icon from content element
+      loading.remove();
 
       return instance;
 
@@ -829,7 +854,7 @@
      * See [this wiki page]{@link https://github.com/ccmjs/framework/wiki/Embedding-Components}
      * to learn more about embedding components in ccmjs.
      *
-     * @param {ccm.types.component_obj|string} component - Component object, index, or URL of the component to register
+     * @param {ccm.types.componentObj|string} component - Component object, index, or URL of the component to register
      * @param {ccm.types.config} [config={}] - Priority data for instance configuration
      * @param {Element} [area=document.createElement("div")] - Web page area where the component instance will be embedded (default: on-the-fly `<div>`).
      * @returns {Promise<ccm.types.instance>} A promise that resolves to the created and started instance.
@@ -899,12 +924,12 @@
      * See [this wiki page]{@link https://github.com/ccmjs/framework/wiki/Data-Management}
      * to learn more about data management in ccmjs.
      *
-     * @param {ccm.types.store_config} [config={}] - Datastore configuration
+     * @param {ccm.types.storeConfig} [config={}] - Datastore configuration
      * @param {string} [config.name] - Logical name of the datastore (required for OfflineStore and RemoteStore)
      * @param {string} [config.url] - Remote endpoint URL. Used together with `name` to create a RemoteStore.
-     * @param {string} [config.db] - (RemoteStore only) Optional database identifier if the server supports multiple databases.
      * @param {Object.<string,ccm.types.dataset>|ccm.types.dataset[]} [config.datasets] - (InMemoryStore only) Initial datasets, either as associative object `{ key: dataset }` or array `[ { key, ... }, ... ]`.
      * @param {Object} [config.observe] - (RemoteStore only) Query defining which datasets should be observed via WebSocket.
+     * @param {function(Error):void} [config.onerror] - (RemoteStore only) Reports an observe failure after the single re-login attempt, if available.
      * @param {function(Object):void} [config.onchange] - (RemoteStore only) Callback invoked when an observed dataset changes.
      * @param {Object} [config.user] - (RemoteStore only) Component instance used for authentication.
      * @returns {Promise<Datastore>} Resolves to an initialized datastore accessor implementing the common datastore API.
@@ -956,8 +981,8 @@
      * See [this wiki page]{@link https://github.com/ccmjs/framework/wiki/Data-Management}
      * to learn more about data management in ccmjs.
      *
-     * @param {ccm.types.store_config} [config={}] - Datastore configuration (same as {@link ccm.store})
-     * @param {ccm.types.key|Object} [key_or_query={}]
+     * @param {ccm.types.storeConfig} [config={}] - Datastore configuration (same as {@link ccm.store})
+     * @param {ccm.types.key|Object} [query={}]
      * Either a dataset key or a query object.
      * If omitted or an empty object is provided, all datasets are returned.
      * @param {Object} [projection]
@@ -969,10 +994,8 @@
      * Interpretation depends on the datastore implementation and may be ignored by some store types.
      * @returns {Promise<ccm.types.dataset|ccm.types.dataset[]>} Resolves to the requested dataset or an array of datasets.
      */
-    get: (config = {}, key_or_query = {}, projection, options) =>
-      ccm
-        .store(config)
-        .then((store) => store.get(key_or_query, projection, options)),
+    get: (config = {}, query = {}, projection, options) =>
+      ccm.store(config).then((store) => store.get(query, projection, options)),
 
     /**
      * Contains ccmjs-relevant helper functions.
@@ -1041,10 +1064,10 @@
        * be in datastore format.
        *
        * @param {ccm.types.dataset[]} arr - Array of datasets
-       * @returns {Object<string,ccm.types.dataset>|*} Datastore-compatible object or original value.
+       * @returns {Object.<string,ccm.types.dataset>|*} Datastore-compatible object or original value.
        *
        * @example
-       * framework.helper.datasetsToStore([
+       * ccm.helper.datasetsToStore([
        *   { key: "a", value: 1 },
        *   { key: "b", value: 2 }
        * ]);
@@ -1136,7 +1159,7 @@
       /**
        * Embeds a ccmjs component into an HTML element.
        *
-       * This helper is automatically used when a `<framework-app>` custom element
+       * This helper is automatically used when a `<ccm-app>` custom element
        * is connected to the DOM. It reads the component and configuration
        * information from the element and starts the requested component
        * instance inside the element.
@@ -1153,29 +1176,29 @@
        * inside the configuration are resolved before the component
        * instance is started.
        *
-       * @param {HTMLElement} element - `<framework-app>` element that hosts the component
+       * @param {HTMLElement} element - `<ccm-app>` element that hosts the component
        * @returns {Promise<ccm.types.instance>} Promise resolving to the started component instance.
        *
        * @example
-       * <framework-app
-       *   component="./framework.quiz.mjs"
+       * <ccm-app
+       *   component="./ccm.quiz.mjs"
        *   config='{"feedback":true}'>
-       * </framework-app>
+       * </ccm-app>
        *
        * @example
-       * <framework-app component="./framework.quiz.mjs">
+       * <ccm-app component="./ccm.quiz.mjs">
        *   <script type="application/json">
        *   {
        *     "feedback": true
        *   }
        *   </script>
-       * </framework-app>
+       * </ccm-app>
        */
       embed: async (element) => {
         // Read the component URL from the attribute. Abort if the attribute is missing.
         const component = element.getAttribute("component");
         if (!component)
-          throw new Error("<framework-app> missing 'component' attribute");
+          throw new Error("<ccm-app> missing 'component' attribute");
 
         // Configuration object that will be constructed from attribute configuration and inline JSON configuration.
         let config = {};
@@ -1185,7 +1208,7 @@
           config = JSON.parse(element.getAttribute("config") || "{}");
         } catch (e) {
           console.warn(
-            "[ccmjs] Invalid JSON in <framework-app> config attribute:",
+            "[ccmjs] Invalid JSON in <ccm-app> config attribute:",
             e,
           );
         }
@@ -1202,7 +1225,7 @@
             );
           } catch (e) {
             console.warn(
-              "[ccmjs] Invalid JSON in <framework-app> application/json script:",
+              "[ccmjs] Invalid JSON in <ccm-app> application/json script:",
               e,
             );
           }
@@ -1211,7 +1234,7 @@
         // Resolve possible ccmjs dependencies in the configuration.
         config = await ccm.helper.solveDependency(config);
 
-        // Start the component instance inside the <framework-app> element.
+        // Start the component instance inside the <ccm-app> element.
         return ccm.start(component, config, element);
       },
 
@@ -1230,7 +1253,7 @@
        *
        * @example
        * // Find nearest user instance in ancestor chain.
-       * const user = framework.helper.findInAncestors(this, "user");
+       * const user = ccm.helper.findInAncestors(this, "user");
        */
       findInAncestors: (instance, prop) => {
         let current = instance;
@@ -1256,7 +1279,7 @@
        * @returns {ccm.types.instance} Root instance of the component tree.
        *
        * @example
-       * const root = framework.helper.findRoot(this);
+       * const root = ccm.helper.findRoot(this);
        */
       findRoot: (instance) => {
         while (instance && instance.parent) instance = instance.parent;
@@ -1276,7 +1299,7 @@
        * @returns {ccm.types.key} Unique identifier with fixed length and URL-safe format.
        *
        * @example
-       * console.log(framework.helper.generateKey()); // => a8acc6ad149047eaa2a89096ecc5a95b
+       * console.log(ccm.helper.generateKey()); // => a8acc6ad149047eaa2a89096ecc5a95b
        */
       generateKey: () => {
         let key = crypto.randomUUID().replaceAll("-", "");
@@ -1292,7 +1315,7 @@
        *
        * A value of `undefined` removes the corresponding property.
        *
-       * Uses `framework.helper.deepValue()` internally.
+       * Uses `ccm.helper.deepValue()` internally.
        * Mutates the given dataset.
        *
        * If no valid priority data object is provided, the dataset is returned unchanged.
@@ -1303,7 +1326,7 @@
        * @returns {Object} Dataset with integrated priority data.
        *
        * @example
-       * const result = framework.helper.integrate(
+       * const result = ccm.helper.integrate(
        *   { lastname: "Done", fullname: undefined },
        *   { firstname: "John", lastname: "Doe", fullname: "John Doe" }
        * );
@@ -1311,7 +1334,7 @@
        * // => { firstname: "John", lastname: "Done" }
        *
        * @example
-       * const result = framework.helper.integrate(
+       * const result = ccm.helper.integrate(
        *   { "foo.c": "z" },
        *   { foo: { a: "x", b: "y" } }
        * );
@@ -1332,7 +1355,7 @@
        *
        * A component object is defined as an object that provides:
        * - a non-empty string `name`
-       * - a `framework` reference (framework URL or core object)
+       * - a `ccm` reference (framework URL or core object)
        * - a default `config` object
        * - an `Instance` constructor function
        *
@@ -1343,15 +1366,15 @@
        * @returns {boolean}
        *
        * @example
-       * framework.helper.isComponent({
+       * ccm.helper.isComponent({
        *   name: "quiz",
-       *   framework: "https://ccmjs.github.io/framework/ccm.js",
+       *   ccm: "https://ccmjs.github.io/framework/ccm.js",
        *   config: {},
        *   Instance: function () {}
        * }); // => true
        *
        * @example
-       * framework.helper.isComponent(null); // => false
+       * ccm.helper.isComponent(null); // => false
        */
       isComponent: (value) =>
         ccm.helper.isObject(value) &&
@@ -1367,22 +1390,22 @@
        * A dataset is a JavaScript object that contains a valid `key` property.
        * Additional properties are allowed.
        *
-       * The `key` must be a valid ccmjs key as defined by `framework.helper.isKey()`.
+       * The `key` must be a valid ccmjs key as defined by `ccm.helper.isKey()`.
        *
        * @param {*} value - Value to check
        * @returns {boolean}
        *
        * @example
-       * framework.helper.isDataset({ key: "task1" }); // => true
+       * ccm.helper.isDataset({ key: "task1" }); // => true
        *
        * @example
-       * framework.helper.isDataset({ key: ["app", "user"] }); // => true
+       * ccm.helper.isDataset({ key: ["app", "user"] }); // => true
        *
        * @example
-       * framework.helper.isDataset({ key: "_invalid" }); // => false
+       * ccm.helper.isDataset({ key: "_invalid" }); // => false
        *
        * @example
-       * framework.helper.isDataset(null); // => false
+       * ccm.helper.isDataset(null); // => false
        */
       isDataset: (value) =>
         ccm.helper.isObject(value) && ccm.helper.isKey(value.key),
@@ -1391,7 +1414,7 @@
        * Checks whether a value is a ccmjs dependency.
        *
        * A dependency is defined as an array whose first element is a string
-       * starting with "framework." and representing a framework method.
+       * starting with "ccm." and representing a framework method.
        *
        * This function performs a structural check only and does not validate
        * the arguments or the existence of the referenced method.
@@ -1400,18 +1423,18 @@
        * @returns {boolean}
        *
        * @example
-       * framework.helper.isDependency(["framework.load", "./file.json"]); // => true
+       * ccm.helper.isDependency(["ccm.load", "./file.json"]); // => true
        *
        * @example
-       * framework.helper.isDependency(["framework.get", { name: "tasks" }, "task1"]); // => true
+       * ccm.helper.isDependency(["ccm.get", { name: "tasks" }, "task1"]); // => true
        *
        * @example
-       * framework.helper.isDependency(null); // => false
+       * ccm.helper.isDependency(null); // => false
        */
       isDependency: (value) =>
         Array.isArray(value) &&
         typeof value[0] === "string" &&
-        value[0].startsWith("framework."),
+        value[0].startsWith("ccm."),
 
       /**
        * Checks whether a value is a ccmjs framework instance.
@@ -1447,11 +1470,11 @@
        * @returns {boolean}
        *
        * @example
-       * const instance = await framework.start("./framework.quiz.mjs");
-       * framework.helper.isInstance(instance); // => true
+       * const instance = await ccm.start("./ccm.quiz.mjs");
+       * ccm.helper.isInstance(instance); // => true
        *
        * @example
-       * framework.helper.isInstance(null); // => false
+       * ccm.helper.isInstance(null); // => false
        */
       isInstance: (value) =>
         ccm.helper.isObject(value) &&
@@ -1475,26 +1498,26 @@
        * @returns {boolean}
        *
        * @example
-       * framework.helper.isKey("task1"); // => true
+       * ccm.helper.isKey("task1"); // => true
        *
        * @example
-       * framework.helper.isKey(["app1", "user1"]); // => true
+       * ccm.helper.isKey(["app1", "user1"]); // => true
        *
        * @example
-       * framework.helper.isKey("_internal"); // => false
+       * ccm.helper.isKey("_internal"); // => false
        *
        * @example
-       * framework.helper.isKey("1abc"); // => false
+       * ccm.helper.isKey("1abc"); // => false
        */
       isKey: (value) => {
-        const KEY_REGEX = /^[a-z][a-z0-9_]{0,31}$/;
+        const keyRegex = /^[a-z][a-z0-9_]{0,31}$/;
 
         // single key
-        if (typeof value === "string") return KEY_REGEX.test(value);
+        if (typeof value === "string") return keyRegex.test(value);
 
         // compound key (array)
         if (Array.isArray(value) && value.length)
-          return value.every((k) => typeof k === "string" && KEY_REGEX.test(k));
+          return value.every((k) => typeof k === "string" && keyRegex.test(k));
 
         return false;
       },
@@ -1510,10 +1533,10 @@
        * @returns {boolean}
        *
        * @example
-       * framework.helper.isNonCloneable(window); // => true
+       * ccm.helper.isNonCloneable(window); // => true
        *
        * @example
-       * framework.helper.isNonCloneable({}); // => false
+       * ccm.helper.isNonCloneable({}); // => false
        */
       isNonCloneable: (value) =>
         value === window ||
@@ -1533,13 +1556,13 @@
        * @returns {boolean}
        *
        * @example
-       * framework.helper.isObject({}); // => true
+       * ccm.helper.isObject({}); // => true
        *
        * @example
-       * framework.helper.isObject([]); // => false
+       * ccm.helper.isObject([]); // => false
        *
        * @example
-       * framework.helper.isObject(null); // => false
+       * ccm.helper.isObject(null); // => false
        */
       isObject: (value) =>
         value !== null && typeof value === "object" && !Array.isArray(value),
@@ -1643,11 +1666,11 @@
        * @returns {HTMLElement} Loading indicator element.
        *
        * @example
-       * const el = framework.helper.loading();
+       * const el = ccm.helper.loading();
        * document.body.appendChild(el);
        *
        * @example
-       * framework.start(component, {
+       * ccm.start(component, {
        *   loading: () => document.createTextNode("Loading..."),
        * });
        */
@@ -1736,10 +1759,10 @@
        *
        * Supported filename patterns:
        *
-       * - framework.<name>.mjs
-       * - framework.<name>.min.mjs
-       * - framework.<name>-<version>.mjs
-       * - framework.<name>-<version>.min.mjs
+       * - ccm.<name>.mjs
+       * - ccm.<name>.min.mjs
+       * - ccm.<name>-<version>.mjs
+       * - ccm.<name>-<version>.min.mjs
        *
        * Example:
        *
@@ -1749,7 +1772,7 @@
        * ```
        * {
        *   url: "https://example.com/lib/ccm.quiz-4.0.0.min.mjs",
-       *   filename: "framework.quiz-4.0.0.min.mjs",
+       *   filename: "ccm.quiz-4.0.0.min.mjs",
        *   sri: "sha256-ABC",
        *   name: "quiz",
        *   version: "4.0.0",
@@ -1769,9 +1792,9 @@
         // Extract filename
         const filename = baseURL.split("/").at(-1);
 
-        const REGEX =
+        const regex =
           /^ccm\.([a-z][a-z0-9_]*)(?:-(\d+\.\d+\.\d+))?(?:\.min)?\.(?:mjs|js)$/;
-        const match = filename.match(REGEX);
+        const match = filename.match(regex);
 
         // Validate filename
         if (!match) throw new Error("invalid component filename: " + filename);
@@ -1782,7 +1805,7 @@
         };
         if (sri) result.sri = sri;
 
-        // Remove prefix "framework." and suffix ".js/.mjs"
+        // Remove prefix "ccm." and suffix ".js/.mjs"
         let namePart = filename.slice(4).replace(/\.(m?js)$/, "");
 
         // Detect minified builds
@@ -1819,7 +1842,7 @@
        *
        * Note:
        * This function does NOT resolve nested dependencies within the configuration.
-       * For that, use `framework.helper.solveDependencies()` afterward.
+       * For that, use `ccm.helper.solveDependencies()` afterward.
        *
        * @param {ccm.types.config|ccm.types.dependency} config - Configuration or dependency to prepare
        * @param {ccm.types.config} defaults - Default configuration
@@ -1854,7 +1877,7 @@
        * Filters a collection of objects using a query.
        *
        * Returns all objects that match the given query. Matching is performed
-       * using `framework.helper.isSubset()`, meaning that all properties in the query
+       * using `ccm.helper.isSubset()`, meaning that all properties in the query
        * must be contained in the object with equal values.
        *
        * @param {Object} query - Query object used for matching.
@@ -1867,7 +1890,7 @@
        *   b: { key: "b", done: false }
        * };
        *
-       * const result = framework.helper.runQuery({ done: true }, data);
+       * const result = ccm.helper.runQuery({ done: true }, data);
        * // => [{ key: "a", done: true }]
        */
       runQuery: (query, objects) => {
@@ -1978,7 +2001,7 @@
 
         // Extract operation and arguments (without mutating original array).
         const [op, ...args] = dependency;
-        const operation = op.substring("framework.".length);
+        const operation = op.substring("ccm.".length);
 
         // Prepare arguments depending on operation.
         switch (operation) {
@@ -2006,7 +2029,7 @@
         if (typeof ccm[operation] !== "function")
           throw new Error(`Unknown ccmjs operation: ${operation}`);
 
-        // Execute framework operation.
+        // Execute ccm operation.
         return ccm[operation](...args);
 
         /**
@@ -2135,18 +2158,18 @@
 
   // Check if this is the first ccmjs version loaded on the web page.
   if (!window.ccm) {
-    // Initialize the global `framework` namespace.
+    // Initialize the global `ccm` namespace.
     window.ccm = ccm;
 
-    // Define the `<framework-app>` custom element if not already defined.
+    // Define the `<ccm-app>` custom element if not already defined.
     if ("customElements" in window && !customElements.get("ccm-app")) {
       window.customElements.define(
         "ccm-app",
         class extends HTMLElement {
           /**
-           * Handles the connection of the `<framework-app>` element to the DOM.
+           * Handles the connection of the `<ccm-app>` element to the DOM.
            *
-           * This lifecycle method is called when the `<framework-app>` element
+           * This lifecycle method is called when the `<ccm-app>` element
            * is inserted into the document. It starts the referenced ccmjs
            * component inside the element and ensures that it is only
            * embedded once.
@@ -2176,7 +2199,7 @@
    *
    * @memberOf ccm
    * @private
-   * @type {Object.<ccm.types.component_index, ccm.types.component_obj>}
+   * @type {Object.<ccm.types.componentIndex, ccm.types.componentObj>}
    */
   const _components = {};
 
@@ -2190,7 +2213,7 @@
    *
    * @param {number} version - Major number of the necessary ccmjs version
    * @param {string} method - Name of the method to be called ('component', 'instance' or 'start')
-   * @param {ccm.types.component_obj|string} component - Object, index or URL of the component
+   * @param {ccm.types.componentObj|string} component - Object, index or URL of the component
    * @param {ccm.types.config} config - Priority data for instance configuration
    * @param {Element} [element] - Web page area where the component will be embedded (default: on-the-fly <div>)
    * @returns {Promise<ccm.types.component|ccm.types.instance>} Promise that resolves to the created component or instance.
@@ -2208,7 +2231,7 @@
         component,
         config,
         major < 18 ? resolve : element,
-      ) // Before version 18, callbacks were used instead of promises (and there was no 3rd parameter for framework.instance and framework.start).
+      ) // Before version 18, callbacks were used instead of promises (and there was no 3rd parameter for ccm.instance and ccm.start).
         ?.then(resolve)
         .catch(reject);
     });
@@ -2241,7 +2264,6 @@
    * Subclasses may provide additional capabilities such as:
    *
    * - `names()`            – list available stores
-   * - `dbs()`              – list available databases
    * - `connect()`          – establish a live connection (RemoteStore)
    * - `close()`            – close active connections
    *
@@ -2298,10 +2320,10 @@
      * Provides identifying information about the underlying storage.
      * Mainly useful for debugging, logging, or remote synchronization.
      *
-     * @returns {{name?: string, url?: string, db?: string}}
+     * @returns {{name?: string, url?: string}}
      */
     source() {
-      return { name: this.name, url: this.url, db: this.db };
+      return { name: this.name, url: this.url };
     }
 
     /**
@@ -2341,7 +2363,7 @@
    * @extends Datastore
    *
    * @example
-   * const store = await framework.store({
+   * const store = await ccm.store({
    *   datasets: [
    *     { key: "a", value: 1 },
    *     { key: "b", value: 2 }
@@ -2377,16 +2399,16 @@
      * Returned datasets are cloned to prevent external mutation of
      * the internal store state.
      *
-     * @param {ccm.types.key|Object} [key_or_query={}] - Dataset key or query object. Defaults to `{}` which returns all datasets.
+     * @param {ccm.types.key|Object} [query={}] - Dataset key or query object. Defaults to `{}` which returns all datasets.
      * @returns {Promise<ccm.types.dataset|null|ccm.types.dataset[]>} Promise that resolves to the requested dataset(s).
      */
-    async get(key_or_query = {}) {
+    async get(query = {}) {
       let result;
-      if (ccm.helper.isObject(key_or_query))
-        result = ccm.helper.runQuery(key_or_query, this.datasets);
+      if (ccm.helper.isObject(query))
+        result = ccm.helper.runQuery(query, this.datasets);
       else {
-        this._checkKey(key_or_query);
-        result = this.datasets[key_or_query] || null;
+        this._checkKey(query);
+        result = this.datasets[query] || null;
       }
       return ccm.helper.clone(result);
     }
@@ -2531,17 +2553,17 @@
      * - If a key is provided, resolves to the matching dataset or `null`.
      * - If a query object is provided, retrieves all datasets and filters them in memory.
      *
-     * @param {ccm.types.key|Object} [key_or_query={}] - Dataset key or query object. Defaults to `{}` which returns all datasets.
+     * @param {ccm.types.key|Object} [query={}] - Dataset key or query object. Defaults to `{}` which returns all datasets.
      * @returns {Promise<ccm.types.dataset|null|ccm.types.dataset[]>}
      */
-    async get(key_or_query = {}) {
-      if (ccm.helper.isObject(key_or_query))
+    async get(query = {}) {
+      if (ccm.helper.isObject(query))
         return ccm.helper.runQuery(
-          key_or_query,
+          query,
           await this.#pReq(this.#getStore().getAll()),
         );
-      this._checkKey(key_or_query);
-      return (await this.#pReq(this.#getStore().get(key_or_query))) || null;
+      this._checkKey(query);
+      return (await this.#pReq(this.#getStore().get(query))) || null;
     }
 
     /**
@@ -2686,6 +2708,23 @@
    */
   class RemoteStore extends Datastore {
     /**
+     * Shared WebSocket connections indexed by server URL for this framework instance
+     *
+     * @type {Map<string, object>}
+     */
+    static #connections = new Map();
+
+    // One login dialog per user, shared by HTTP requests and subscriptions.
+    static #logins = new WeakMap();
+    #observeToken;
+    #observeRetried = false;
+    #observeRecovery = false;
+    #observeVersion = 0;
+
+    /** @type {object|null} */
+    #connection = null;
+
+    /**
      * Initializes the remote datastore connection.
      *
      * - Resolves the user instance from the component hierarchy.
@@ -2712,17 +2751,17 @@
      * - If a key is provided, resolves to the matching dataset or `null`.
      * - If a query object is provided, resolves to an array of matching datasets.
      *
-     * Optional `projection` and `options` parameters correspond to MongoDB-style
-     * query extensions and are forwarded directly to the server.
+     * Optional `projection` and `options` parameters are forwarded directly
+     * to the server and may be interpreted by the backend implementation.
      *
-     * @param {ccm.types.key|Object} [key_or_query={}] - Dataset key or query object
-     * @param {Object} [projection] - Fields to include or exclude
-     * @param {Object} [options] - Additional query options (e.g. sort, limit)
+     * @param {ccm.types.key|Object} [query={}] - Dataset key or query object.
+     * @param {*} [projection] - Backend-specific projection forwarded to the server.
+     * @param {*} [options] - Backend-specific query options forwarded to the server.
      * @returns {Promise<ccm.types.dataset|ccm.types.dataset[]>}
      */
-    async get(key_or_query = {}, projection, options) {
-      if (!ccm.helper.isObject(key_or_query)) this._checkKey(key_or_query);
-      const params = { get: key_or_query };
+    async get(query = {}, projection, options) {
+      if (!ccm.helper.isObject(query)) this._checkKey(query);
+      const params = { get: query };
 
       // Forward optional query modifiers to the server.
       if (projection) params.projection = projection;
@@ -2736,13 +2775,15 @@
      *
      * Generates a key if none is provided and forwards the dataset to the server.
      *
-     * @param {ccm.types.dataset} priodata - Dataset to create or update
+     * @param {ccm.types.dataset} priodata - Dataset to create or update.
+     * @param {*} [update] - Backend-specific update instructions forwarded to the server.
+     * @param {*} [options] - Backend-specific options forwarded to the server.
      * @returns {Promise<ccm.types.dataset>}
      */
-    async set(priodata) {
+    async set(priodata, update, options) {
       if (!priodata.key) priodata.key = ccm.helper.generateKey();
       this._checkKey(priodata.key);
-      return this.#send({ set: priodata });
+      return this.#send({ set: priodata, update, options });
     }
 
     /**
@@ -2772,24 +2813,14 @@
      * @returns {Promise<string[]>}
      */
     async names() {
-      return this.#send({ names: this.db });
-    }
-
-    /**
-     * Lists available databases on the server.
-     *
-     * @returns {Promise<string[]>}
-     */
-    async dbs() {
-      return this.#send({ names: "dbs" });
+      return this.#send({ names: true });
     }
 
     /**
      * Sends a request to the remote datastore server.
      *
      * Automatically attaches:
-     * - framework version (`framework`)
-     * - database identifier (`db`)
+     * - framework version (`ccm`)
      * - store name (`store`)
      * - authentication token (if available)
      *
@@ -2800,91 +2831,245 @@
      * @private
      */
     async #send(params = {}) {
-      // Attach framework version for compatibility checks.
+      // Attach the framework version for compatibility checks
       params.ccm = this.ccm || ccm.version;
 
-      // Attach database and store identifiers.
-      params.db = this.db || "";
-      params.store = this.name;
+      // Store listing applies to the server, all other operations select a store
+      if (!("names" in params)) params.store = this.name;
 
       // Attach authentication token if available.
-      if (this.user?.isLoggedIn()) params.token = this.user.getState().token;
+      if (this.user?.isLoggedIn()) params.token = this.user.getToken();
       if (this.token) params.token = this.token;
 
       try {
-        return await ccm.load({ url: this.url, params });
-      } catch (e) {
-        // Handle authentication errors by retrying login
-        if (this.user && (e.status === 401 || e.status === 403)) {
-          try {
-            await this.user.logout();
-            await this.user.login();
-            params.token = this.user.getState().token;
-            return await ccm.load({ url: this.url, params });
-          } catch (e) {
-            // If login fails, restart the root component
-            if (this.parent) await ccm.helper.findRoot(this).start();
-            else throw e;
-          }
-        } else throw e;
+        return await ccm.load({
+          url: this.url,
+          method: "POST",
+          params,
+        });
+      } catch (error) {
+        if (!this.user || (error.status !== 401 && error.status !== 403)) throw error;
+        await this.#relogin(params.token);
+        params.token = this.user.getToken();
+        if (this.token) this.token = params.token;
+        // Retry once. Login cancellation and a second failure reach the caller.
+        return ccm.load({
+          url: this.url,
+          method: "POST",
+          params,
+        });
+      }
+    }
+
+    /** Shares concurrent login attempts and reuses an already renewed token. */
+    async #relogin(failedToken) {
+      const user = this.user.getSessionOwner?.() ?? this.user;
+      const pending = RemoteStore.#logins.get(user);
+      if (pending) return pending;
+      if (user.isLoggedIn() && user.getToken() !== failedToken) return;
+      const login = Promise.resolve().then(async () => {
+        await user.logout();
+        await user.login();
+      });
+      RemoteStore.#logins.set(user, login);
+      try {
+        await login;
+      } finally {
+        RemoteStore.#logins.delete(user);
       }
     }
 
     /**
-     * Establishes a WebSocket connection for realtime datastore updates.
-     *
-     * The server will push notifications when datasets matching the configured `observe` query change.
+     * Observes this datastore using the shared connection for its server URL.
      */
     connect() {
-      // Convert HTTP endpoint to WebSocket endpoint.
-      this.socket = new WebSocket(this.url.replace(/^http/, "ws"));
+      if (this.#connection) return;
 
-      // Subscribe to datastore observation when connection opens.
-      this.socket.onopen = () => {
-        this.socket.send(
-          JSON.stringify({
-            db: this.db,
-            store: this.name,
-            observe: this.observe,
-          }),
-        );
+      const url = new URL(this.url, document.baseURI);
+      url.protocol = url.protocol.replace(/^http/, "ws");
+      url.hash = "";
+      const key = url.href;
+      let connection = RemoteStore.#connections.get(key);
+
+      if (!connection) {
+        connection = {
+          url: key,
+          stores: new Set(),
+          requests: new Map(),
+          subscriptions: new Map(),
+          nextRequest: 0,
+          reconnected: false,
+          socket: null,
+        };
+        RemoteStore.#connections.set(key, connection);
+      }
+
+      this.#observeVersion++;
+      this.#observeRetried = false;
+      this.#observeRecovery = false;
+      this.#connection = connection;
+      connection.stores.add(this);
+
+      if (!connection.socket) RemoteStore.#openConnection(connection);
+      if (connection.socket.readyState === WebSocket.OPEN)
+        RemoteStore.#subscribe(connection, this);
+    }
+
+    /**
+     * Opens a shared connection and restores its active subscriptions.
+     *
+     * @param {object} connection - Shared connection state
+     */
+    static #openConnection(connection) {
+      const socket = new WebSocket(connection.url);
+      connection.socket = socket;
+
+      socket.onopen = () => {
+        for (const store of connection.stores)
+          RemoteStore.#subscribe(connection, store);
       };
 
-      // Handle incoming update notifications.
-      this.socket.onmessage = (message) => {
+      socket.onmessage = (event) => {
+        let message;
         try {
-          this.onchange && this.onchange(JSON.parse(message.data));
-        } catch (e) {
-          console.error("Failed to parse WebSocket message:", message.data, e);
+          message = JSON.parse(event.data);
+        } catch (error) {
+          console.error(
+            "Failed to parse WebSocket message:",
+            event.data,
+            error,
+          );
+          return;
+        }
+        if (!message || typeof message !== "object" || Array.isArray(message))
+          return;
+
+        // Associate an acknowledgement with the datastore that requested it
+        if (message.request !== undefined) {
+          const store = connection.requests.get(message.request);
+          connection.requests.delete(message.request);
+          if (!store) return;
+          if (message.error !== undefined) {
+            store.#observeFailed(message);
+            return;
+          }
+          if (
+            Number.isInteger(message.subscription) &&
+            message.subscription > 0
+          ) {
+            store.#observeRetried = false;
+            connection.subscriptions.set(message.subscription, store);
+          }
+          return;
+        }
+
+        // Deliver only dataset changes to the matching datastore
+        const store = connection.subscriptions.get(message.subscription);
+        if (store && message.error !== undefined) {
+          connection.subscriptions.delete(message.subscription);
+          store.#observeFailed(message);
+          return;
+        }
+        if (store && Object.hasOwn(message, "dataset")) {
+          try {
+            store.onchange?.(message.dataset);
+          } catch (error) {
+            console.error("Observe callback failed:", error);
+          }
         }
       };
 
-      // Log WebSocket errors.
-      this.socket.onerror = (err) => {
-        console.error("WebSocket error:", err);
-      };
+      socket.onerror = (error) => console.error("WebSocket error:", error);
+      socket.onclose = () => {
+        // Ignore an old connection that was deliberately closed or replaced
+        if (RemoteStore.#connections.get(connection.url) !== connection) return;
+        connection.requests.clear();
+        connection.subscriptions.clear();
+        connection.socket = null;
 
-      // Attempt a single automatic reconnect if the connection drops.
-      this.socket.onclose = (event) => {
-        console.warn(
-          `[ccmjs] WebSocket closed, code=${event.code}, reason=${event.reason}`,
-        );
-        if (!this._manualClose && !this._reconnectAttempted) {
-          this._reconnectAttempted = true;
-          this.connect();
+        // Attempt one automatic reconnect for all remaining datastores together
+        if (connection.stores.size && !connection.reconnected) {
+          connection.reconnected = true;
+          RemoteStore.#openConnection(connection);
+        } else {
+          RemoteStore.#connections.delete(connection.url);
+          for (const store of connection.stores) store.#connection = null;
+          connection.stores.clear();
         }
       };
     }
 
+    /** Renew authentication once, then resubscribe without restarting the app. */
+    async #observeFailed(message) {
+      if (this.#observeRecovery) return;
+      const version = this.#observeVersion;
+      let error = Object.assign(new Error(message.error), { status: message.status });
+      if (this.user && !this.#observeRetried && (error.status === 401 || error.status === 403)) {
+        this.#observeRetried = true;
+        this.#observeRecovery = true;
+        try {
+          await this.#relogin(this.#observeToken);
+          if (version !== this.#observeVersion) return;
+          if (this.token) this.token = this.user.getToken();
+          this.#observeRecovery = false;
+          const connection = this.#connection;
+          if (connection?.socket?.readyState === WebSocket.OPEN)
+            RemoteStore.#subscribe(connection, this);
+          return;
+        } catch (failure) {
+          error = failure;
+        }
+      }
+      if (version !== this.#observeVersion) return;
+      this.close();
+      try {
+        if (this.onerror) await this.onerror(error);
+        else console.error("Observe subscription ended:", error);
+      } catch (callbackError) {
+        console.error("Observe error callback failed:", callbackError);
+      }
+    }
+
     /**
-     * Closes the active WebSocket connection.
+     * Sends an observe request and remembers its originating datastore.
+     *
+     * @param {object} connection - Shared connection state
+     * @param {RemoteStore} store - Datastore to observe
+     */
+    static #subscribe(connection, store) {
+      if (store.#observeRecovery) return;
+      const request = connection.nextRequest++;
+      connection.requests.set(request, store);
+      const params = {
+        request,
+        store: store.name,
+        observe: store.observe,
+      };
+      if (store.user?.isLoggedIn()) params.token = store.user.getToken();
+      if (store.token) params.token = store.token;
+      store.#observeToken = params.token;
+      connection.socket.send(JSON.stringify(params));
+    }
+
+    /**
+     * Stops local observation and closes the connection after its last user leaves.
+     *
+     * The server currently removes subscriptions only when the socket closes.
      */
     close() {
-      if (this.socket) {
-        this._manualClose = true;
-        this.socket.close();
-        delete this._manualClose;
-        this.socket = null;
+      this.#observeVersion++;
+      this.#observeRecovery = false;
+      const connection = this.#connection;
+      if (!connection) return;
+      this.#connection = null;
+      connection.stores.delete(this);
+      for (const entries of [connection.requests, connection.subscriptions])
+        for (const [id, store] of entries)
+          if (store === this) entries.delete(id);
+
+      if (!connection.stores.size) {
+        RemoteStore.#connections.delete(connection.url);
+        connection.socket?.close();
       }
     }
   }
@@ -2896,13 +3081,13 @@
  */
 
 /**
- * @typedef {string} ccm.types.component_index
+ * @typedef {string} ccm.types.componentIndex
  * @description Unique identifier of a registered component
  * @example "quiz-4-0-0"
  */
 
 /**
- * @typedef {Object} ccm.types.component_obj
+ * @typedef {Object} ccm.types.componentObj
  * @description ccmjs component definition object
  * @property {string} name - Component name
  * @property {string|ccm.types.framework} ccm - ccmjs framework reference or URL
@@ -2924,18 +3109,18 @@
 /**
  * @typedef {Array} ccm.types.dependency
  * @description ccmjs dependency definition
- * @example ["framework.load", "./file.json"]
- * @example ["framework.component", "./framework.quiz.mjs"]
- * @example ["framework.instance", "./framework.quiz.mjs", {}]
- * @example ["framework.start", "./framework.quiz.mjs", {}]
- * @example ["framework.store", { name: "tasks" }]
- * @example ["framework.get", { name: "tasks" }, "key"]
+ * @example ["ccm.load", "./file.json"]
+ * @example ["ccm.component", "./ccm.quiz.mjs"]
+ * @example ["ccm.instance", "./ccm.quiz.mjs", {}]
+ * @example ["ccm.start", "./ccm.quiz.mjs", {}]
+ * @example ["ccm.store", { name: "tasks" }]
+ * @example ["ccm.get", { name: "tasks" }, "key"]
  */
 
 /**
  * @typedef {Object} ccm.types.framework
  * @description ccmjs framework instance
- * @property {ccm.types.version_nr} version - Framework version
+ * @property {ccm.types.versionNr} version - Framework version
  * @property {Function} load - Loads resources
  * @property {Function} component - Registers a component
  * @property {Function} instance - Creates an instance
@@ -2951,7 +3136,7 @@
  * @property {string} id - Instance ID (unique within the component)
  * @property {string} index - Unique instance identifier within the page
  * @property {ccm.types.framework} ccm - Used ccmjs framework
- * @property {ccm.types.component_obj} component - Associated component
+ * @property {ccm.types.componentObj} component - Associated component
  * @property {HTMLElement} host - Host DOM element
  * @property {HTMLElement} element - Content element
  * @property {ShadowRoot} [root] - Shadow DOM root (if enabled)
@@ -2961,7 +3146,7 @@
  */
 
 /**
- * @typedef {Object} ccm.types.resource_obj
+ * @typedef {Object} ccm.types.resourceObj
  * @description
  * Resource configuration object for {@link ccm.load}.
  *
@@ -2986,7 +3171,7 @@
  */
 
 /**
- * @typedef {Object} ccm.types.store_config
+ * @typedef {Object} ccm.types.storeConfig
  * @description
  * Configuration object for creating a datastore via {@link ccm.store}.
  *
@@ -2998,9 +3183,9 @@
  *
  * @property {string} [name] - Datastore name (required for persistent stores)
  * @property {string} [url] - Server endpoint for remote datastore
- * @property {string} [db] - Optional database identifier (remote only)
  * @property {Object|ccm.types.dataset[]} [datasets] - Initial datasets (in-memory store)
  * @property {Object} [observe] - Query for observing dataset changes (remote only)
+ * @property {Function} [onerror] - Callback for observe failures after re-login or without a configured user
  * @property {Function} [onchange] - Callback for observed dataset changes
  * @property {ccm.types.instance} [user] - User instance for authentication (remote only)
  * @property {ccm.types.instance} [parent] - Parent instance (internal use)
@@ -3010,7 +3195,7 @@
  */
 
 /**
- * @typedef {string} ccm.types.version_nr
+ * @typedef {string} ccm.types.versionNr
  * @description Semantic Versioning 2.0.0 compliant version string
  * @example "1.0.0"
  * @example "2.1.3"
