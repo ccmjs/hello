@@ -43,7 +43,7 @@ all configuration is documented where it is defined.
 <script src="https://ccmjs.github.io/hello/libs/framework/ccm.js"></script>
 
 <script>
-ccm.start("https://cdn.jsdelivr.net/gh/ccmjs/hello@v1.0.1/ccm.hello-1.0.1.min.mjs", { name: "Mika" }, document.body);
+ccm.start("https://cdn.jsdelivr.net/gh/ccmjs/hello@v1.0.1/ccm.hello-1.0.1.min.mjs#sha384-Jqp57u/mfcOiMvxKEN9ZZWX7J7pPVKr+hfkCiE0SiZno8NkzwwpSRNxBsP0oW/iZ", { name: "Mika" }, document.body);
 </script>
 ```
 
