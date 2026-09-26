@@ -11,7 +11,7 @@
  */
 export const component = {
   name: "hello",
-  ccm: "././libs/framework/ccm.js",
+  ccm: "././libs/framework/ccm-28.0.0.min.js",
   config: {
     name: "World", // Name used in the greeting
   },
