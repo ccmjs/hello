@@ -50,7 +50,7 @@ export const component = {
   },
   Instance: function () {
     this.start = async () => {
-      this.element.innerHTML = "Hello " + this.name;
+      this.element.textContent = "Hello " + this.name;
     };
   }
 };
@@ -77,13 +77,13 @@ You can always:
 
 ```html
 <script
-    src="https://cdn.jsdelivr.net/gh/ccmjs/hello@v1.0.2/libs/framework/ccm-28.0.0.min.js"
+    src="https://cdn.jsdelivr.net/gh/ccmjs/hello@v1.0.3/libs/framework/ccm-28.0.0.min.js"
     integrity="sha384-HDMeDDgKlR2OFJ3ECMwmA6wknqpfpeCiSZYlUhQaFg9FKrvHJp8MMSwrxibvWJ2G"
     crossorigin="anonymous"
 ></script>
 <script type="module">
   ccm.start(
-      "https://cdn.jsdelivr.net/gh/ccmjs/hello@v1.0.2/ccm.hello-1.0.2.min.mjs#sha384-3IXRubSI45viyTG5zg8Tj7JAWsfc7THXAySa97jTXE/btx2Si1bTt4CW/8y9pGge",
+      "https://cdn.jsdelivr.net/gh/ccmjs/hello@v1.0.3/ccm.hello-1.0.3.min.mjs#sha384-3IXRubSI45viyTG5zg8Tj7JAWsfc7THXAySa97jTXE/btx2Si1bTt4CW/8y9pGge",
       { name: "Mika" },
       document.body
   );

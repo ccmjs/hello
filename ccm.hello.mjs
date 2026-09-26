@@ -7,7 +7,7 @@
  * @author André Kless <andre.kless@web.de>
  * @copyright 2025–2026 André Kless
  * @license MIT
- * @version 1.0.2
+ * @version 1.0.3
  */
 export const component = {
   name: "hello",
@@ -17,7 +17,7 @@ export const component = {
   },
   Instance: function () {
     this.start = async () => {
-      this.element.innerHTML = "Hello " + this.name;
+      this.element.textContent = "Hello " + this.name;
     };
   },
 };
