@@ -83,7 +83,7 @@ You can always:
 ></script>
 <script type="module">
   ccm.start(
-      "https://cdn.jsdelivr.net/gh/ccmjs/hello@v1.0.3/ccm.hello-1.0.3.min.mjs#sha384-3IXRubSI45viyTG5zg8Tj7JAWsfc7THXAySa97jTXE/btx2Si1bTt4CW/8y9pGge",
+      "https://cdn.jsdelivr.net/gh/ccmjs/hello@v1.0.3/ccm.hello-1.0.3.min.mjs#sha384-3dtmKvcukK9126rQXFXN30Fv7nB63v8gghrzE0Ub7pTv6WhvVcqZqwqc0VuGmhmr",
       { name: "Mika" },
       document.body
   );
