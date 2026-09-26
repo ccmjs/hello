@@ -7,7 +7,7 @@
  * @author André Kless <andre.kless@web.de>
  * @copyright 2025–2026 André Kless
  * @license MIT
- * @version 1.0.0
+ * @version 1.0.1
  */
 export const component = {
   name: "hello",

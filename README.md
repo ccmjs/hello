@@ -13,7 +13,7 @@ Include ccmjs and start the component:
 <meta charset="UTF-8">
 <body>
 
-<script src="./libs/framework/ccm.js"></script>
+<script src="./libs/framework/ccm-28.0.0.min.js"></script>
 
 <script>
 ccm.start("./ccm.hello.mjs", {
@@ -40,10 +40,10 @@ all configuration is documented where it is defined.
 ## 📦 Usage with CDN (versioned)
 
 ```html
-<script src="https://ccmjs.github.io/hello/libs/framework/ccm.js"></script>
+<script src="https://ccmjs.github.io/hello/libs/framework/ccm-28.0.0.min.js#sha384-HDMeDDgKlR2OFJ3ECMwmA6wknqpfpeCiSZYlUhQaFg9FKrvHJp8MMSwrxibvWJ2G"></script>
 
 <script>
-ccm.start("https://cdn.jsdelivr.net/gh/ccmjs/hello@v1.0.1/ccm.hello-1.0.1.min.mjs#sha384-Jqp57u/mfcOiMvxKEN9ZZWX7J7pPVKr+hfkCiE0SiZno8NkzwwpSRNxBsP0oW/iZ", { name: "Mika" }, document.body);
+ccm.start("https://cdn.jsdelivr.net/gh/ccmjs/hello@v1.0.0/ccm.hello-1.0.0.min.mjs#sha384-TwTFx/hQxRlhj+h3iIKuEdcpgTUEGk9doAZ8fRUYXAxGpCXMIsD1TLBbGnTVToxZ", { name: "Mika" }, document.body);
 </script>
 ```
 
@@ -54,7 +54,7 @@ A ccmjs component exports a `component` object:
 ```js
 export const component = {
   name: "hello",
-  ccm: "https://ccmjs.github.io/framework/ccm.js",
+  ccm: "https://ccmjs.github.io/framework/ccm-28.0.0.min.js",
   config: {
     name: "World"
   },
