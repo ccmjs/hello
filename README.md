@@ -41,9 +41,8 @@ all configuration is documented where it is defined.
 
 ```html
 <script src="https://ccmjs.github.io/hello/libs/framework/ccm-28.0.0.min.js#sha384-HDMeDDgKlR2OFJ3ECMwmA6wknqpfpeCiSZYlUhQaFg9FKrvHJp8MMSwrxibvWJ2G"></script>
-
 <script>
-ccm.start("https://cdn.jsdelivr.net/gh/ccmjs/hello@v1.0.0/ccm.hello-1.0.0.min.mjs#sha384-TwTFx/hQxRlhj+h3iIKuEdcpgTUEGk9doAZ8fRUYXAxGpCXMIsD1TLBbGnTVToxZ", { name: "Mika" }, document.body);
+  ccm.start("https://cdn.jsdelivr.net/gh/ccmjs/hello@v1.0.2/ccm.hello-1.0.2.min.mjs#sha384-3IXRubSI45viyTG5zg8Tj7JAWsfc7THXAySa97jTXE/btx2Si1bTt4CW/8y9pGge", { name: "Mika" }, document.body);
 </script>
 ```
 
